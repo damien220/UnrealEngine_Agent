@@ -18,34 +18,52 @@ UnrealEngine_Agent/
 ├── unreal-world-builder.md
 ├── unreal-blueprint-specialist.md
 └── refs/                               ← on-demand knowledge files, not pre-loaded
-    ├── systems-engineer/               ← owned by UnrealSystemsEngineer (complete, 12 files)
+    ├── systems-engineer/               ← owned by UnrealSystemsEngineer (complete, 16 files)
     │   ├── blueprint-cpp-boundary.md   ← Tick rule, UFUNCTION macros, Blueprint scope
     │   ├── nanite-lumen.md             ← 16M limit, incompatibilities, Lumen setup, profiling
     │   ├── memory-gc.md                ← UPROPERTY rules, TWeakObjectPtr, IsValid()
     │   ├── gas-setup.md                ← .Build.cs deps, UAttributeSet, UGameplayAbility, tags
     │   ├── build-system.md             ← GenerateProjectFiles, circular deps, reflection macros
-    │   ├── crash-prevention.md         ← 25-pattern crash audit with applied fixes
+    │   ├── crash-prevention.md         ← crash patterns, TArray bounds, component init order
     │   ├── object-lifecycle.md         ← init phases, CreateDefaultSubobject vs NewObject
     │   ├── cpp-casting.md              ← Cast vs CastChecked vs static_cast, UInterface calls
     │   ├── architecture-patterns.md    ← composition, delegates, subsystems, object pooling
     │   ├── threading-async.md          ← game thread rule, AsyncTask, FCriticalSection
     │   ├── asset-management.md         ← hard vs soft refs, TSoftObjectPtr, FStreamableManager
-    │   └── logging-assertions.md       ← log categories, check/ensure semantics, CVars
-    ├── multiplayer-architect/          ← owned by UnrealMultiplayerArchitect (complete, 7 files)
+    │   ├── logging-assertions.md       ← log categories, check/ensure semantics, CVars
+    │   ├── engine-version-macros.md    ← UE_VERSION_OLDER_THAN, multi-version #if guards, .Build.cs definitions
+    │   ├── materials-shaders.md        ← material domains, MPC, RVT, custom HLSL, DMI caching
+    │   ├── enhanced-input.md           ← UInputMappingContext, UInputAction, priority stacking
+    │   └── save-system.md              ← USaveGame, UPROPERTY(SaveGame), async save, versioning
+    ├── multiplayer-architect/          ← owned by UnrealMultiplayerArchitect (complete, 10 files)
     │   ├── authority-rpcs.md           ← server authority, RPC taxonomy, Reliable vs Unreliable
     │   ├── replication-efficiency.md   ← DOREPLIFETIME conditions, NetUpdateFrequency, dormancy
     │   ├── network-hierarchy.md        ← GameMode/GameState/PlayerState/PlayerController layout
     │   ├── gas-replication.md          ← dual init path, ASC replication modes, prediction
     │   ├── dedicated-server.md         ← server target, RunUAT, DefaultGame.ini, profiling
-    │   ├── anti-cheat.md               ← _Validate pattern, exploit categories, audit logging
-    │   └── advanced-replication.md     ← Replication Graph, Network Prediction Plugin
-    ├── world-builder/                  ← planned for Phase 3
-    └── blueprint-specialist/           ← owned by UnrealBlueprintSpecialist (complete, 5 files)
+    │   ├── anti-cheat.md               ← _Validate pattern, EAC/BattlEye, value obfuscation
+    │   ├── advanced-replication.md     ← Replication Graph, Network Prediction Plugin
+    │   ├── sessions-matchmaking.md     ← IOnlineSessionInterface, async lifecycle, server travel
+    │   ├── voice-chat.md               ← IVoiceChat, EOS Voice, channel types, push-to-talk
+    │   └── lag-compensation.md         ← rewind history, hit validation, rollback architecture
+    ├── world-builder/                  ← owned by UnrealWorldBuilder (complete, 8 files)
+    │   ├── world-partition.md          ← cell sizes, data layers, OFPA, streaming triggers
+    │   ├── landscape.md                ← resolution limits, layer count, RVT, edit layers
+    │   ├── hlod.md                     ← HLOD0/1/2 setup, rebuild workflow, mesh vs instanced
+    │   ├── pcg-foliage.md              ← PCG graph nodes, exclusion zones, pre-bake thresholds
+    │   ├── streaming-performance.md    ← profiling commands, budget targets, cell size tuning
+    │   ├── advanced-world.md           ← LWC FVector double, OFPA, world origin rebasing
+    │   ├── water-system.md             ← AWaterBody types, UBuoyancyComponent, always-loaded ocean
+    │   └── atmosphere.md               ← ASkyAtmosphere, time-of-day, volumetric clouds, fog
+    └── blueprint-specialist/           ← owned by UnrealBlueprintSpecialist (complete, 8 files)
         ├── graph-organization.md       ← container types, 15-node threshold, naming conventions
         ├── communication-patterns.md   ← Interface vs Dispatcher vs Cast decision tree
         ├── performance-patterns.md     ← VM cost model, Tick discipline, GetAllActors caching
         ├── cpp-handoff.md              ← UFUNCTION/UPROPERTY macros, metadata, UINTERFACE
-        └── data-assets.md              ← PrimaryDataAsset, DataTable, Asset Manager, soft refs
+        ├── data-assets.md              ← PrimaryDataAsset, DataTable, Asset Manager, soft refs
+        ├── umg-widgets.md              ← widget lifecycle, binding discipline, UMG performance
+        ├── anim-blueprint.md           ← AnimGraph vs EventGraph, state machines, notifies
+        └── gas-blueprints.md           ← GA Blueprint subclass, attribute access, tag queries
 ```
 
 Agent `.md` files stay at root — FleetView scans the root directory for agent definitions. The `refs/` subtree is knowledge-on-demand: agents read only the file relevant to the current task, keeping per-invocation context minimal.
@@ -126,7 +144,7 @@ The three agents share overlapping UE5 concepts. Keep these consistent across fi
 
 ### Phase 1 — UnrealSystemsEngineer (complete)
 
-All 12 ref files created. The agent's `Critical Rules` section uses the full summary+trigger pattern throughout — no inline rule content remains in the main file.
+All 16 ref files created. The agent's `Critical Rules` section uses the full summary+trigger pattern throughout — no inline rule content remains in the main file.
 
 | Ref file | Coverage |
 |---|---|
@@ -135,19 +153,23 @@ All 12 ref files created. The agent's `Critical Rules` section uses the full sum
 | `memory-gc.md` | UPROPERTY rules, TWeakObjectPtr, TSharedPtr, IsValid(), TObjectPtr, GC timing |
 | `gas-setup.md` | .Build.cs deps, ASC replication modes, UAttributeSet, UGameplayAbility, tag system |
 | `build-system.md` | GenerateProjectFiles triggers, module structure, circular deps, reflection macros |
-| `crash-prevention.md` | 25-pattern crash audit with code-level fixes |
+| `crash-prevention.md` | Crash patterns, TArray bounds safety, GetComponentByClass null-guard, component init order |
 | `object-lifecycle.md` | Init phases, CDO trap, CreateDefaultSubobject vs NewObject vs SpawnActorDeferred |
 | `cpp-casting.md` | Cast vs CastChecked vs static_cast, UInterface calling conventions |
 | `architecture-patterns.md` | Composition, delegates, subsystems, object pooling |
 | `threading-async.md` | Game thread rule, AsyncTask, FCriticalSection, ParallelFor |
 | `asset-management.md` | Hard vs soft refs, TSoftObjectPtr, FStreamableManager |
 | `logging-assertions.md` | Log categories, check/ensure semantics, CVars, DrawDebug stripping |
+| `engine-version-macros.md` | `UE_VERSION_OLDER_THAN`/`NEWER_THAN`, multi-version `#if` guards, `.Build.cs` `PublicDefinitions`, UHT macro restrictions, LWC `FVector` precision, deprecation pragmas |
+| `materials-shaders.md` | Material domains, MPC (UBO pattern), RVT, custom HLSL restrictions, DMI caching |
+| `enhanced-input.md` | UInputMappingContext, UInputAction, ETriggerEvent types, Swizzle modifier, priority stacking |
+| `save-system.md` | USaveGame subclass, `UPROPERTY(SaveGame)`, async save/load, ESaveDataVersion migration |
 
 ---
 
 ### Phase 2 — UnrealMultiplayerArchitect (complete)
 
-All 7 ref files created. The agent's `Critical Rules` section uses the full summary+trigger pattern throughout — no inline rule content remains in the main file. Step 0 (code-mapper project structure) added to Workflow.
+All 10 ref files created. The agent's `Critical Rules` section uses the full summary+trigger pattern throughout — no inline rule content remains in the main file. Step 0 (code-mapper project structure) added to Workflow.
 
 | Ref file | Coverage |
 |---|---|
@@ -156,23 +178,28 @@ All 7 ref files created. The agent's `Critical Rules` section uses the full summ
 | `network-hierarchy.md` | GameMode/GameState/PlayerState/PlayerController — what each owns, replication scope, access patterns, violation table |
 | `gas-replication.md` | Dual init path (PossessedBy + OnRep_PlayerState), ASC replication modes, prediction (LocalPredicted/ServerInitiated), FPredictionKey, FGameplayEffectContext |
 | `dedicated-server.md` | Server target file, RunUAT build command, DefaultGame.ini config, IsRunningDedicatedServer skips, bandwidth config, profiling, graceful shutdown, Online Beacons |
-| `anti-cheat.md` | _Validate pattern, distance/rate/range exploits, re-check in _Implementation, audit logging, security checklist |
+| `anti-cheat.md` | _Validate pattern, distance/rate/range exploits, EAC & BattlEye integration, server value obfuscation with COND_OwnerOnly |
 | `advanced-replication.md` | Replication Graph plugin, GridSpatialization2D, frequency bucket nodes, Network Prediction Plugin state types and simulation callback, NPP vs CMC comparison |
+| `sessions-matchmaking.md` | IOnlineSessionInterface async lifecycle (Create→Find→Join→Destroy), FOnlineSessionSettings, server/seamless travel |
+| `voice-chat.md` | IVoiceChat interface, EOS Voice plugin, channel types (positional/non-positional), push-to-talk binding |
+| `lag-compensation.md` | Server-side rewind history buffer, hit validation at historical positions, rollback architecture patterns |
 
 ---
 
-### Phase 3 — UnrealWorldBuilder
+### Phase 3 — UnrealWorldBuilder (complete)
 
-Apply the same ref-file structure to `unreal-world-builder.md`.
+All 8 ref files created. The agent's `Critical Rules` section refactored from inline bullets to full summary+trigger pattern. Water system and Sky/Atmosphere added as new topics.
 
-| Topic | Planned ref file |
+| Ref file | Coverage |
 |---|---|
-| World Partition grid & data layers | `refs/world-builder/world-partition.md` |
-| Landscape resolution, layers & RVT | `refs/world-builder/landscape.md` |
-| HLOD configuration & rebuild workflow | `refs/world-builder/hlod.md` |
-| PCG graph design & exclusion zones | `refs/world-builder/pcg-foliage.md` |
-| Streaming performance & profiling checklist | `refs/world-builder/streaming-performance.md` |
-| Large World Coordinates & OFPA | `refs/world-builder/advanced-world.md` |
+| `refs/world-builder/world-partition.md` | Cell sizes, data layers, OFPA, runtime streaming triggers, Always Loaded layer |
+| `refs/world-builder/landscape.md` | Resolution limits, visible layer count (4), RVT setup, edit layers, weightmap budget |
+| `refs/world-builder/hlod.md` | HLOD0/1/2 configuration, rebuild workflow, Nanite proxy vs instanced mesh HLOD |
+| `refs/world-builder/pcg-foliage.md` | PCG graph node types, exclusion zones, pre-bake threshold (> 1km²), runtime vs baked |
+| `refs/world-builder/streaming-performance.md` | Profiling commands, budget targets, cell size tuning, draw call reduction checklist |
+| `refs/world-builder/advanced-world.md` | LWC FVector double precision, OFPA actor files, world origin rebasing |
+| `refs/world-builder/water-system.md` | AWaterBody types (Ocean/Lake/River), UBuoyancyComponent pontoons, always-loaded ocean requirement |
+| `refs/world-builder/atmosphere.md` | ASkyAtmosphere pipeline, bAtmosphereSunLight, bRealTimeCapture, time-of-day rotation, volumetric clouds |
 
 ---
 
@@ -187,6 +214,9 @@ Designer-facing C++/Blueprint continuum: graph organization, communication patte
 | `refs/blueprint-specialist/performance-patterns.md` | Blueprint VM cost model, Tick discipline, GetAllActorsOfClass caching, ForEach C++ migration, Blueprint Profiler usage |
 | `refs/blueprint-specialist/cpp-handoff.md` | UFUNCTION macro table, UPROPERTY specifiers, metadata reference table, Blueprint Function Library, UINTERFACE |
 | `refs/blueprint-specialist/data-assets.md` | PrimaryDataAsset/DataTable/CurveTable choice table, Asset Manager registration, soft vs hard reference rules |
+| `refs/blueprint-specialist/umg-widgets.md` | Widget lifecycle (Construct/Destruct), binding discipline, UMG performance rules, UserWidget C++ base |
+| `refs/blueprint-specialist/anim-blueprint.md` | AnimGraph vs EventGraph roles, state machine setup, AnimNotify/Notifystate, thread-safe update |
+| `refs/blueprint-specialist/gas-blueprints.md` | GA Blueprint subclass pattern, attribute access in Blueprint, gameplay tag queries, effect application |
 
 See `plan.md` for the full enhancement roadmap and new agent proposals.
 

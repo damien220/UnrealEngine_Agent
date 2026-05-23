@@ -150,3 +150,76 @@ Run before every milestone and before every public build:
 - [ ] No gameplay-critical state is mutated outside an `HasAuthority()` guard
 - [ ] Verify: can a client directly trigger another player's damage, score change, or item pickup? (Answer must be: No)
 - [ ] Verify: can a client send values that would crash the server (NaN, divide-by-zero inputs)? (Answer must be: No)
+
+---
+
+## EAC & BattlEye Plugin Integration
+
+UE5 ships EAC and BattlEye stubs. Enable via `.uproject` and `DefaultEngine.ini`.
+
+### .uproject plugin entries
+```json
+{
+    "Plugins": [
+        { "Name": "EasyAntiCheat", "Enabled": true },
+        { "Name": "BattlEye",      "Enabled": false }
+    ]
+}
+```
+
+### DefaultEngine.ini
+```ini
+[/Script/Engine.Engine]
+DefaultPlatformService=EOS
+
+[OnlineSubsystemEOS]
+bEnabled=true
+bEnableEAC=true
+bEnableBattlEye=false   ; Set true if using BattlEye instead
+```
+
+**Flow**: On server startup the EOS SDK initializes the anti-cheat service. The client connects, anti-cheat verifies binary integrity, and the session is only established if the check passes. Server-side EAC functions are `EOS_AntiCheatServer_*` — accessed via the EOS SDK, not UE's native API.
+
+**Mobile / console**: EAC is PC/console only. Do not enable on mobile targets — the plugin is a no-op and adds unnecessary build complexity.
+
+---
+
+## Obfuscating Server-Authoritative Values
+
+Never replicate raw authoritative values (exact health, ammo) to non-owning clients — they are visible in memory and packet captures.
+
+### Owner-only replication
+```cpp
+// Exact values — only the owning client needs them
+UPROPERTY(Replicated) float Health;
+UPROPERTY(Replicated) int32 Ammo;
+
+// Coarse indicator — all clients see this for UI/status bars
+UENUM(BlueprintType)
+enum class EHealthLevel : uint8 { Full, High, Medium, Low, Critical };
+UPROPERTY(ReplicatedUsing=OnRep_HealthLevel) EHealthLevel HealthLevel;
+
+void AMyCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    DOREPLIFETIME_CONDITION(AMyCharacter, Health,      COND_OwnerOnly);
+    DOREPLIFETIME_CONDITION(AMyCharacter, Ammo,        COND_OwnerOnly);
+    DOREPLIFETIME(AMyCharacter, HealthLevel);  // Enum visible to all — no exploitable precision
+}
+```
+
+### Updating the coarse indicator server-side
+```cpp
+void AMyCharacter::Server_TakeDamage_Implementation(float DamageAmount)
+{
+    Health = FMath::Max(0.f, Health - DamageAmount);
+
+    if      (Health > 80.f) HealthLevel = EHealthLevel::Full;
+    else if (Health > 50.f) HealthLevel = EHealthLevel::High;
+    else if (Health > 20.f) HealthLevel = EHealthLevel::Medium;
+    else if (Health >  0.f) HealthLevel = EHealthLevel::Low;
+    else                    HealthLevel = EHealthLevel::Critical;
+}
+```
+
+**Rule**: Apply `COND_OwnerOnly` to health, ammo, currency, inventory counts, and any value that gives a gameplay advantage when known. Replicate only a quantized or enum-level representation to all other clients.

@@ -69,6 +69,24 @@ Replication Graph replaces the default O(actors × connections) relevancy model 
 
 Read **`refs/multiplayer-architect/advanced-replication.md`** when: enabling Replication Graph for a large-scale game, implementing custom spatial relevancy, building a physics vehicle or custom movement system that requires client-side prediction, or profiling replication evaluation CPU overhead.
 
+### Sessions & Matchmaking
+
+`IOnlineSessionInterface` drives the full session lifecycle: Create → Find → Join → Destroy. Every async call requires a stored `FDelegateHandle` — delegates bound as local variables are garbage-collected before the callback fires. `FOnlineSessionSettings` fields determine server visibility (`bShouldAdvertise`, `bUsesPresence`) and capacity (`NumPublicConnections`). After `JoinSession` completes, call `GetResolvedConnectString` to obtain the server address, then `ClientTravel` to connect. Seamless travel requires `bUseSeamlessTravel=true` in `GameMode` and a `TransitionMap` entry in `DefaultEngine.ini`.
+
+Read **`refs/multiplayer-architect/sessions-matchmaking.md`** when: implementing lobby creation, server browser search, matchmaking flow, platform-specific session backends (Null/Steam/EOS), or debugging join failures and delegate lifecycle issues.
+
+### Voice Chat
+
+UE5's Online Voice subsystem (`IVoiceEngine`, `UVOIPTalker`) transmits encoded audio automatically once a session is active — it does not require manual audio capture. Attach `UVOIPTalker` to each `APlayerState` and register it in `BeginPlay`. Mute/unmute individual players using `IOnlineVoice::MuteRemoteTalker`; never mute by destroying the component. Platform-specific backends (Discord, Vivox, EOS Voice) require separate plugin enablement in `.uproject`.
+
+Read **`refs/multiplayer-architect/voice-chat.md`** when: implementing in-game voice chat, configuring proximity or team-only voice channels, muting individual players, or integrating third-party voice backends (Vivox, Discord).
+
+### Lag Compensation & Server Rewind
+
+Lag compensation rewinds server-side actor state to the moment the client fired, so hit detection accounts for network delay. Store position history per actor as a circular buffer of `FTransform` + timestamp pairs; on each Server RPC hit-query, walk back to the client's send-time snapshot and perform the trace from there. Cap rewind depth at 300ms (beyond that, hits are unreliable and exploitable). Never rewind authoritative physics actors — rewind only lightweight transform snapshots. For competitive shooters, validate the rewound hit against current server geometry to prevent shots-through-wall exploits.
+
+Read **`refs/multiplayer-architect/lag-compensation.md`** when: implementing hitscan or melee hit registration on a dedicated server, resolving "I clearly hit them" complaints at normal ping levels, or building a replay/rewind system for server-side validation.
+
 ## 📋 Your Technical Deliverables
 
 ### Replicated Actor Setup

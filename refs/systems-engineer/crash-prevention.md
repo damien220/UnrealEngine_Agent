@@ -379,6 +379,111 @@ Auditor: UnrealSystemsEngineer. Date: 2026-05-16.
 | CRASH-008/024 | `RunnerDifficultySubsystem.cpp` | `StartDifficulty` and `PauseDifficulty` now null-check `GetWorld()` before calling timer manager |
 | CRASH-009/022 | `RunnerActorPoolSubsystem.cpp`, `RunnerTileManager.cpp`, `RunnerSaveSubsystem.cpp`, `RunnerDifficultySubsystem.cpp` | All `GConfig->` call sites now wrapped in `if (GConfig)` with warning log fallback |
 | CRASH-010 | `RunnerPCGTilePopulator.cpp` | Added `RemoveDynamic` for obstacle graph callback immediately before `AddDynamic` on the reused PCG component |
+
+---
+
+## General UE5 Crash-Prevention Patterns
+
+These patterns apply to any UE5 project, independent of the InfiniteRunner audit above.
+
+---
+
+### PATTERN-A: TArray bounds — always use IsValidIndex before operator[]
+
+**Risk level:** High
+**Pattern:** Direct `Array[i]` access without bounds check crashes when `i` is out of range. `operator[]` has no bounds checking in Shipping builds.
+
+```cpp
+// CRASH — i may be stale or out of range
+void AMyActor::ProcessItem(int32 Index)
+{
+    FItemData& Item = ItemList[Index];  // Undefined behavior if Index >= ItemList.Num()
+    Item.Apply();
+}
+
+// SAFE
+void AMyActor::ProcessItem(int32 Index)
+{
+    if (!ItemList.IsValidIndex(Index)) return;
+    FItemData& Item = ItemList[Index];
+    Item.Apply();
+}
+```
+
+**Extra caution**: `TArray::Last()` crashes on an empty array. Always call `Num() > 0` before using `Last()` or `Pop()`.
+
+```cpp
+if (SpawnQueue.Num() > 0)
+{
+    AActor* Next = SpawnQueue.Pop();
+}
+```
+
+---
+
+### PATTERN-B: GetComponentByClass — null-guard every call
+
+**Risk level:** High
+**Pattern:** `GetComponentByClass<T>()` returns `nullptr` when the component does not exist on this specific actor instance. Blueprint subclasses may not include the component that the C++ base assumes.
+
+```cpp
+// CRASH — assumes component is always present
+void AMyActor::ApplyDamage(float Amount)
+{
+    UHealthComponent* Health = GetComponentByClass<UHealthComponent>();
+    Health->TakeDamage(Amount);  // nullptr crash on actors without HealthComponent
+}
+
+// SAFE
+void AMyActor::ApplyDamage(float Amount)
+{
+    UHealthComponent* Health = GetComponentByClass<UHealthComponent>();
+    if (!IsValid(Health)) return;
+    Health->TakeDamage(Amount);
+}
+```
+
+**Related**: `FindComponentByClass<T>()` is the equivalent on `AActor` pre-UE5.4. Both return `nullptr` — always null-guard.
+
+---
+
+### PATTERN-C: PostInitializeComponents vs BeginPlay — component setup order
+
+**Risk level:** Medium
+**Pattern:** Accessing sibling component data during construction or `PostInitializeComponents` before all components are fully initialized causes subtle crashes or stale reads. `BeginPlay` is the safe point where all components on the actor are guaranteed initialized.
+
+```
+Actor lifecycle order:
+  constructor (CDO)
+  → PostInitializeComponents   ← components created; OK to configure this component
+                                 NOT safe to call gameplay logic or query sibling components
+  → BeginPlay                  ← all sibling components initialized; safe for cross-component queries
+  → Tick
+```
+
+```cpp
+// RISKY — queries a sibling component during PostInitializeComponents; order not guaranteed
+void AMyActor::PostInitializeComponents()
+{
+    Super::PostInitializeComponents();
+    // MotionWarping may not have run PostInitializeComponents yet
+    UMotionWarpingComponent* Warp = GetComponentByClass<UMotionWarpingComponent>();
+    Warp->AddOrUpdateWarpTargetFromLocation(TEXT("Target"), FVector::ZeroVector); // May crash
+}
+
+// SAFE — defer cross-component queries to BeginPlay
+void AMyActor::BeginPlay()
+{
+    Super::BeginPlay();
+    UMotionWarpingComponent* Warp = GetComponentByClass<UMotionWarpingComponent>();
+    if (IsValid(Warp))
+    {
+        Warp->AddOrUpdateWarpTargetFromLocation(TEXT("Target"), FVector::ZeroVector);
+    }
+}
+```
+
+**When PostInitializeComponents IS appropriate**: Configure `this` component's own properties (e.g., setting `PrimaryComponentTick.bCanEverTick = false` on self, registering component-local callbacks). Do not touch other actors or other components on this actor.
 | CRASH-021 | `RunnerPCGTilePopulator.cpp` | Added `RemoveDynamic` for collectible graph callback immediately before `AddDynamic` |
 | CRASH-025 | `RunnerObstacleBase.cpp` | Added `URunnerAnalyticsSubsystem::BroadcastObstacleHit` call in `OnCharacterHit_Implementation`; added required includes |
 

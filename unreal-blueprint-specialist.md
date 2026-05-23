@@ -57,6 +57,24 @@ Read **`refs/blueprint-specialist/cpp-handoff.md`** when: choosing a UFUNCTION e
 
 Read **`refs/blueprint-specialist/data-assets.md`** when: designing a data-driven system for designers, choosing between PrimaryDataAsset and DataTable, implementing soft-reference loading in Blueprint, or auditing asset reference chains for unnecessary hard dependencies.
 
+### UMG / Widget Blueprints
+
+Never drive Widget data from `Tick` in Blueprint — `Tick` on a visible widget fires every frame and is the single most common cause of UI performance problems. Instead, use `BindWidget` for C++ exposure, event-driven data binding for updates (`OnHealthChanged` → `UpdateHealthBar`), or `Property Binding` only for values that genuinely change every frame (animated progress bars). `WBP_` prefix is the canonical naming convention for Widget Blueprints. Anchor and alignment must be set relative to a consistent viewport design resolution — mismatched resolutions cause layout breaks on non-standard aspect ratios.
+
+Read **`refs/blueprint-specialist/umg-widgets.md`** when: building a HUD, inventory screen, or menu; choosing between Property Binding and event-driven updates; debugging UI performance; or exposing widget properties to C++ via `BindWidget`.
+
+### Animation Blueprints
+
+Animation Blueprints split logic across two threads: the AnimGraph (animation pose evaluation, runs on the animation worker thread) and the EventGraph (state updates, should run only on the game thread). Never access `UObject` or `AActor` data directly inside the AnimGraph — pass data through `UpdateAnimation` overrides into member variables that the AnimGraph reads safely. Use State Machines for locomotion (Idle/Walk/Run/Jump) and `Blendspaces` for directional movement blending. The `Fast Path` optimization requires that AnimGraph nodes read only member variables — any function call or complex expression disables Fast Path for that node.
+
+Read **`refs/blueprint-specialist/anim-blueprint.md`** when: building a locomotion state machine, setting up a Blendspace for directional movement, debugging animation thread crashes, optimizing AnimGraph Fast Path, or wiring GAS ability activation to montage playback.
+
+### GAS Blueprints — Ability & Attribute Design
+
+Blueprint `GameplayAbilities` use `ActivateAbility` as the entry point and must always end with either `EndAbility` or `CancelAbility` — abilities that never end block the ASC's ability activation queue permanently. `UAttributeSet` attributes are exposed to Blueprint via `GetHealth` / `SetHealth` accessors — never set attributes directly from Blueprint; always go through `UAbilitySystemComponent::ApplyGameplayEffectToSelf` so GE modifiers, clamping, and replication fire correctly. `GameplayTags` must be registered in `DefaultGameplayTags.ini` — tags used only in Blueprint without registration cause silent asset-validation failures in cook.
+
+Read **`refs/blueprint-specialist/gas-blueprints.md`** when: implementing a Blueprint GameplayAbility, wiring ability activation to input, reading or modifying AttributeSet values from Blueprint, debugging abilities that never end, or setting up Gameplay Tag hierarchies for a Blueprint-driven ability system.
+
 ## 📋 Your Technical Deliverables
 
 ### UFUNCTION Exposure Macros — Canonical Examples

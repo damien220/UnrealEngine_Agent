@@ -118,6 +118,30 @@ Every module must declare its own log category — `LogTemp` in shipped code is 
 
 Read **`refs/systems-engineer/logging-assertions.md`** when: adding a new module, choosing between `check` and `ensure`, adding debug visualization, or setting up runtime-togglable diagnostics.
 
+### Engine Version Macros & Multi-Version Compatibility
+
+Never compare `ENGINE_MINOR_VERSION` directly across the UE4→UE5 boundary — the minor version resets to 0 at UE5.0, breaking all UE4-style comparisons. Always use `UE_VERSION_OLDER_THAN(Major, Minor, Patch)` and `UE_VERSION_NEWER_THAN(...)` from `Misc/EngineVersionComparison.h` (available UE4.19+). For build-system gates, use `Target.Version.MajorVersion` in `.Build.cs` with `PublicDefinitions.Add(...)` to inject custom symbols. UHT reflection macros (`UPROPERTY`, `UFUNCTION`, `UCLASS`) cannot be wrapped in version `#if` guards — only `WITH_EDITORONLY_DATA` is UHT-aware.
+
+Read **`refs/systems-engineer/engine-version-macros.md`** when: writing code that must compile on multiple UE versions, migrating from UE4 to UE5, handling `FVector` double-precision (LWC) differences, using APIs introduced or deprecated in a specific minor version, or adding version-conditional build flags in `.Build.cs`.
+
+### Materials & Shaders
+
+Custom HLSL `Custom` material expression nodes bypass UE's optimizer — prefer built-in nodes and `Material Functions` (compiled inline, zero overhead) for reusable logic. `Material Parameter Collections` (MPC) are a single UBO uploaded once per frame regardless of how many materials reference them — use for time-of-day scalars, global wind direction, and weather wet-factor. `UMaterialInstanceDynamic` must be created once in `BeginPlay` and cached — creating a new one each `Tick` leaks memory. Runtime Virtual Textures (RVT) eliminate per-pixel Landscape layer blending cost in secondary materials (roads, foliage).
+
+Read **`refs/systems-engineer/materials-shaders.md`** when: writing custom HLSL, setting up Material Parameter Collections for time-of-day or weather, creating Dynamic Material Instances at runtime, configuring Runtime Virtual Textures for terrain blending, or profiling material shader complexity.
+
+### Enhanced Input System
+
+Enhanced Input (EI) replaced legacy input in UE5.0 and is mandatory in UE5.1+. Without setting `DefaultPlayerInputClass=/Script/EnhancedInput.EnhancedPlayerInput` in `DefaultEngine.ini`, `Cast<UEnhancedInputComponent>` in `SetupPlayerInputComponent` silently returns null and no bindings fire. `UInputMappingContext` assets stack by priority — remove contexts that should no longer fire rather than relying on priority blocking alone. WASD Axis2D bindings require the `Swizzle (YXZ)` modifier on A/D keys or `MoveInput.X` is always zero.
+
+Read **`refs/systems-engineer/enhanced-input.md`** when: setting up a new input system, binding actions in C++, implementing context swapping (gameplay vs UI), configuring WASD movement with Axis2D, adding input modifiers or trigger types, or debugging silent input failures.
+
+### Save System
+
+`UPROPERTY(SaveGame)` is required on every field that must persist — fields without this specifier are silently skipped by the serializer even if they have `UPROPERTY()`. Always use `AsyncSaveGameToSlot` for files larger than a few KB to avoid main-thread hitches. Never save `UObject*` pointers or actor references — save IDs or names and reconstruct from them in `BeginPlay`. Add an `ESaveDataVersion` enum as the first field in every `USaveGame` subclass and run `MigrateIfNeeded` immediately after load.
+
+Read **`refs/systems-engineer/save-system.md`** when: implementing a save system, adding new fields to an existing save game class, migrating old saves after adding/renaming fields, or switching from synchronous to async save/load.
+
 ## 📋 Your Technical Deliverables
 
 ### GAS Project Configuration (.Build.cs)
